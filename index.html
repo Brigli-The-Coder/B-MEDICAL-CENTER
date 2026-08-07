@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B Medical Center — Reel Maker</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#b9835f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="B Medical Reel">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<style>
+  :root{
+    --bg1:#faf3ea;
+    --bg2:#f0e0d0;
+    --ink:#3a2b22;
+    --sub:#8a7362;
+    --accent:#b9835f;
+    --accent2:#c9a06a;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;
+    padding:0;
+    min-height:100vh;
+    background:linear-gradient(165deg, var(--bg1) 0%, var(--bg2) 55%, var(--bg1) 100%);
+    font-family:'Segoe UI', system-ui, sans-serif;
+    color:var(--ink);
+  }
+
+  /* ============ FORM VIEW ============ */
+  #formView{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:40px 20px;
+  }
+  .card{
+    background:rgba(255,255,255,0.55);
+    border:1px solid rgba(185,131,95,0.35);
+    border-radius:20px;
+    padding:36px;
+    max-width:560px;
+    width:100%;
+    backdrop-filter:blur(6px);
+    box-shadow:0 10px 40px rgba(0,0,0,0.08);
+  }
+  .card h1{font-size:1.5rem; margin:0 0 6px;}
+  .card p.sub{margin:0 0 28px; opacity:0.7; font-size:0.92rem;}
+
+  .mode-tabs{
+    display:flex; gap:10px; margin-bottom:6px;
+  }
+  .mode-tab{
+    flex:1; padding:14px 10px; border-radius:12px;
+    border:2px solid rgba(185,131,95,0.35); background:#fffdf8;
+    text-align:center; cursor:pointer; font-weight:700; font-size:0.92rem;
+    color:var(--ink); transition:all .15s ease; user-select:none;
+  }
+  .mode-tab .emoji{font-size:1.4rem; display:block; margin-bottom:4px;}
+  .mode-tab.active{
+    border-color:var(--accent); background:rgba(185,131,95,0.12);
+    color:var(--accent);
+  }
+  .mode-tab .ratio{font-size:0.72rem; opacity:0.6; font-weight:500; display:block; margin-top:2px;}
+
+  label{
+    display:block; font-weight:600; font-size:0.85rem;
+    margin:18px 0 6px; color:var(--accent);
+    letter-spacing:0.3px; text-transform:uppercase;
+  }
+  input[type=text], textarea, input[type=file]{
+    width:100%; padding:12px 14px; border-radius:10px;
+    border:1px solid rgba(185,131,95,0.4); background:#fffdf8;
+    font-size:0.95rem; font-family:inherit; color:var(--ink);
+  }
+  textarea{resize:vertical; min-height:70px;}
+  input:focus, textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .row{display:flex; gap:14px;}
+  .row > div{flex:1;}
+  button{
+    margin-top:28px; width:100%; padding:14px; border:none;
+    border-radius:12px; background:var(--accent); color:#fff;
+    font-size:1rem; font-weight:700; cursor:pointer;
+    letter-spacing:0.3px; transition:transform .15s ease, background .2s ease;
+  }
+  button:hover{background:#a06f4a; transform:translateY(-1px);}
+  button:disabled{opacity:0.5; cursor:not-allowed; transform:none;}
+  .hint{font-size:0.78rem; opacity:0.6; margin-top:4px;}
+  .preview-name{font-size:0.8rem; margin-top:6px; color:var(--accent); font-weight:600;}
+  .check-row{
+    display:flex; align-items:center; gap:8px; margin-top:18px;
+  }
+  .check-row input{width:auto;}
+  .check-row label{
+    margin:0; text-transform:none; font-size:0.9rem; font-weight:500; color:var(--ink);
+  }
+
+  /* ============ RESULT VIEW ============ */
+  #resultView{
+    display:none;
+    min-height:100vh;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:20px;
+    padding:30px 16px;
+  }
+  #previewCanvas{
+    width:min(90vw, 340px);
+    height:auto;
+    border-radius:18px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.2);
+    background:#000;
+  }
+  .controls{
+    display:flex; gap:12px; flex-wrap:wrap; justify-content:center;
+    max-width:420px; width:100%;
+  }
+  .controls button{
+    margin-top:0; flex:1; min-width:140px;
+  }
+  .btn-secondary{
+    background:transparent; color:var(--accent); border:1px solid var(--accent) !important;
+  }
+  .btn-secondary:hover{ background:rgba(185,131,95,0.1); color:var(--accent);}
+  .status{
+    font-size:0.9rem; color:var(--ink); text-align:center; min-height:20px;
+    font-weight:600;
+  }
+  .status.recording{ color:#b23b3b; }
+  .download-link{
+    display:none;
+    margin-top:6px;
+    padding:14px 20px;
+    background:#2b7a3f;
+    color:#fff !important;
+    border-radius:12px;
+    font-weight:700;
+    text-decoration:none;
+    text-align:center;
+    width:100%;
+    max-width:420px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ FORM VIEW ============ -->
+<div id="formView">
+  <div class="card">
+    <h1>🎬 B Medical Center — Video Reel Maker</h1>
+    <p class="sub">Zgjidh formatin, plotëso të dhënat, dhe gjenero video në rezolucion të lartë — pa screen record.</p>
+
+    <div class="mode-tabs">
+      <div class="mode-tab active" id="tabPhone" data-mode="phone">
+        <span class="emoji">📱</span>
+        Phone Reel
+        <span class="ratio">9:16 — Reels/Stories</span>
+      </div>
+      <div class="mode-tab" id="tabLaptop" data-mode="laptop">
+        <span class="emoji">💻</span>
+        Laptop Desk
+        <span class="ratio">16:9 — YouTube/Landscape</span>
+      </div>
+    </div>
+
+    <form id="setupForm">
+      <label>Logo (opsionale — nëse s'zgjedh, përdoret logo e B Medical Center nga CDN)</label>
+      <input type="file" id="logoFile" accept="image/*">
+      <div class="preview-name" id="logoName"></div>
+
+      <label>Video juaj (do të luajë brenda mockup-it)</label>
+      <input type="file" id="videoFile" accept="video/*">
+      <div class="preview-name" id="videoName"></div>
+      <div class="hint" id="videoHint">Video vertikale (9:16) rekomandohet. Cilësia finale varet nga cilësia e kësaj video origjinale.</div>
+
+      <label>Caption / Përshkrimi (poshtë mockup-it)</label>
+      <textarea id="caption" placeholder="Shkruaj captionin këtu...">Aty ku inovacioni takon artin e Mjekësisë Estetike ✨</textarea>
+
+      <label>Username Instagram</label>
+      <input type="text" id="igHandle" value="@bmedicalcenter">
+
+      <div class="check-row">
+        <input type="checkbox" id="includeAudio" checked>
+        <label for="includeAudio">Përfshi zërin e videos në eksport</label>
+      </div>
+
+      <button type="submit">Vazhdo →</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ RESULT VIEW ============ -->
+<div id="resultView">
+  <canvas id="previewCanvas" width="1080" height="1920"></canvas>
+
+  <div class="status" id="statusText">Gati për eksport.</div>
+
+  <div class="controls">
+    <button id="recordBtn">⏺ Fillo Eksportin</button>
+    <button id="backBtn" class="btn-secondary">← Kthehu</button>
+  </div>
+
+  <a id="downloadLink" class="download-link" download="bmedicalcenter-reel.webm">⬇ Shkarko Video-n (.webm)</a>
+</div>
+
+<!-- Hidden source elements used for drawing -->
+<video id="srcVideo" playsinline style="display:none;"></video>
+<img id="srcLogo" style="display:none;">
+
+<script>
+const formView = document.getElementById('formView');
+const resultView = document.getElementById('resultView');
+const setupForm = document.getElementById('setupForm');
+
+const videoFileInput = document.getElementById('videoFile');
+const logoFileInput = document.getElementById('logoFile');
+const videoNameEl = document.getElementById('videoName');
+const logoNameEl = document.getElementById('logoName');
+
+const srcVideo = document.getElementById('srcVideo');
+const srcLogo = document.getElementById('srcLogo');
+const canvas = document.getElementById('previewCanvas');
+let ctx = canvas.getContext('2d');
+const liveCtx = ctx; // the real, visible canvas context
+
+const recordBtn = document.getElementById('recordBtn');
+const backBtn = document.getElementById('backBtn');
+const statusText = document.getElementById('statusText');
+const downloadLink = document.getElementById('downloadLink');
+
+let captionText = '';
+let igHandle = '';
+let ttHandle = '';
+let includeAudio = true;
+let animFrameId = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let startTime = null;
+let MODE = 'phone'; // 'phone' (9:16) or 'laptop' (16:9)
+
+const tabPhone = document.getElementById('tabPhone');
+const tabLaptop = document.getElementById('tabLaptop');
+const videoHint = document.getElementById('videoHint');
+
+function setMode(mode){
+  MODE = mode;
+  tabPhone.classList.toggle('active', mode === 'phone');
+  tabLaptop.classList.toggle('active', mode === 'laptop');
+  videoHint.textContent = mode === 'phone'
+    ? 'Video vertikale (9:16) rekomandohet. Cilësia finale varet nga cilësia e kësaj video origjinale.'
+    : 'Video horizontale (16:9) rekomandohet. Cilësia finale varet nga cilësia e kësaj video origjinale.';
+  // Canvas dimensions + geometry must be rebuilt for the new mode
+  if(mode === 'phone'){
+    applyPhoneGeometry();
+  } else {
+    applyLaptopGeometry();
+  }
+  canvas.width = CW; canvas.height = CH;
+  staticLayerDirty = true;
+  staticLayer = null;
+}
+
+tabPhone.addEventListener('click', () => setMode('phone'));
+tabLaptop.addEventListener('click', () => setMode('laptop'));
+
+videoFileInput.addEventListener('change', () => {
+  if(videoFileInput.files.length > 0) videoNameEl.textContent = "✓ " + videoFileInput.files[0].name;
+});
+logoFileInput.addEventListener('change', () => {
+  if(logoFileInput.files.length > 0) logoNameEl.textContent = "✓ " + logoFileInput.files[0].name;
+});
+
+// ---------- Design constants (canvas size changes with MODE) ----------
+let CW = 1080, CH = 1920;
+const COLORS = { bg1:'#faf3ea', bg2:'#f0e0d0', ink:'#3a2b22', sub:'#8a7362', accent:'#b9835f', accent2:'#c9a06a' };
+
+// Phone geometry (mutable — recalculated by applyPhoneGeometry())
+let PHONE_W, PHONE_H, PHONE_X, PHONE_Y, PHONE_RADIUS;
+let SCREEN_PAD, SCREEN_X, SCREEN_Y, SCREEN_W, SCREEN_H, SCREEN_RADIUS;
+
+function applyPhoneGeometry(){
+  CW = 1080; CH = 1920;
+  PHONE_W = 580; PHONE_H = 1120;
+  PHONE_X = (CW - PHONE_W)/2;
+  PHONE_Y = 330;
+  PHONE_RADIUS = 84;
+  SCREEN_PAD = 30;
+  SCREEN_X = PHONE_X + SCREEN_PAD;
+  SCREEN_Y = PHONE_Y + SCREEN_PAD;
+  SCREEN_W = PHONE_W - SCREEN_PAD*2;
+  SCREEN_H = PHONE_H - SCREEN_PAD*2;
+  SCREEN_RADIUS = 66;
+}
+
+// Laptop geometry (mutable — recalculated by applyLaptopGeometry())
+let LAPTOP_W, LAPTOP_H, LAPTOP_X, LAPTOP_Y;
+let LSCREEN_X, LSCREEN_Y, LSCREEN_W, LSCREEN_H, LSCREEN_RADIUS;
+let LBASE_H, LBASE_W, LBASE_X, LBASE_Y;
+
+function applyLaptopGeometry(){
+  CW = 1920; CH = 1080;
+  // Laptop screen (the lid) — sized/positioned to clear the header above
+  // and leave room for the desk + vases + caption strip below.
+  LAPTOP_W = 980; LAPTOP_H = 610;
+  LAPTOP_X = (CW - LAPTOP_W)/2;
+  LAPTOP_Y = 270;
+  const bezel = 22;
+  LSCREEN_X = LAPTOP_X + bezel;
+  LSCREEN_Y = LAPTOP_Y + bezel;
+  LSCREEN_W = LAPTOP_W - bezel*2;
+  LSCREEN_H = LAPTOP_H - bezel*2 - 30; // extra bottom bezel (chin)
+  LSCREEN_RADIUS = 10;
+  // Base (keyboard deck) — trapezoid-ish base under the screen
+  LBASE_H = 34;
+  LBASE_W = LAPTOP_W + 110;
+  LBASE_X = (CW - LBASE_W)/2;
+  LBASE_Y = LAPTOP_Y + LAPTOP_H;
+}
+
+applyPhoneGeometry();
+
+function roundRectPath(x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+
+function drawBackground(){
+  const grad = ctx.createLinearGradient(0,0,CW*0.4,CH);
+  grad.addColorStop(0, COLORS.bg1);
+  grad.addColorStop(0.55, COLORS.bg2);
+  grad.addColorStop(1, COLORS.bg1);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,CW,CH);
+
+  // soft blobs
+  let rg = ctx.createRadialGradient(-40,-40,10, -40,-40, 320);
+  rg.addColorStop(0,'rgba(255,255,255,0.9)');
+  rg.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle = rg;
+  ctx.fillRect(0,0,600,600);
+
+  rg = ctx.createRadialGradient(CW-40, CH-40, 10, CW-40, CH-40, 280);
+  rg.addColorStop(0,'rgba(185,131,95,0.35)');
+  rg.addColorStop(1,'rgba(185,131,95,0)');
+  ctx.fillStyle = rg;
+  ctx.fillRect(CW-600, CH-600, 600, 600);
+
+  // dots grid
+  ctx.fillStyle = 'rgba(43,38,32,0.22)';
+  const dotStartX = CW - 260, dotStartY = 610;
+  for(let row=0; row<3; row++){
+    for(let col=0; col<4; col++){
+      ctx.beginPath();
+      ctx.arc(dotStartX + col*40, dotStartY + row*40, 7, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+}
+
+// ============ Desk scene (laptop mode): wall + desk + flower vases ============
+function drawWall(){
+  // Same beige family as the phone background, but as a flat "wall" band.
+  // Wall ends a bit below the laptop's base so the desk has clear room.
+  const wallH = LBASE_Y + LBASE_H * 0.4;
+  const grad = ctx.createLinearGradient(0,0,0,wallH);
+  grad.addColorStop(0, COLORS.bg1);
+  grad.addColorStop(1, COLORS.bg2);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, CW, wallH);
+
+  // soft top-left glow, matching the phone mode's blob language
+  let rg = ctx.createRadialGradient(-60,-60,10, -60,-60, 420);
+  rg.addColorStop(0,'rgba(255,255,255,0.85)');
+  rg.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle = rg;
+  ctx.fillRect(0,0,700,700);
+
+  // dot grid accent, top-right
+  ctx.fillStyle = 'rgba(43,38,32,0.18)';
+  const dotStartX = CW - 300, dotStartY = 90;
+  for(let row=0; row<3; row++){
+    for(let col=0; col<5; col++){
+      ctx.beginPath();
+      ctx.arc(dotStartX + col*38, dotStartY + row*38, 6, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+  return wallH;
+}
+
+function drawDesk(wallH){
+  // Desk surface: a warm wood-toned band filling the rest of the frame
+  const deskGrad = ctx.createLinearGradient(0, wallH, 0, CH);
+  deskGrad.addColorStop(0, '#c9a877');
+  deskGrad.addColorStop(1, '#a9845a');
+  ctx.fillStyle = deskGrad;
+  ctx.fillRect(0, wallH, CW, CH - wallH);
+
+  // subtle horizon shadow where wall meets desk
+  const shadowGrad = ctx.createLinearGradient(0, wallH-30, 0, wallH+30);
+  shadowGrad.addColorStop(0, 'rgba(0,0,0,0)');
+  shadowGrad.addColorStop(0.5, 'rgba(0,0,0,0.12)');
+  shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = shadowGrad;
+  ctx.fillRect(0, wallH-30, CW, 60);
+
+  // faint wood grain lines
+  ctx.strokeStyle = 'rgba(80,55,30,0.10)';
+  ctx.lineWidth = 2;
+  for(let i=0; i<6; i++){
+    const y = wallH + 40 + i*46;
+    if(y > CH-10) break;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.bezierCurveTo(CW*0.3, y+10, CW*0.7, y-10, CW, y);
+    ctx.stroke();
+  }
+}
+
+function drawLeaf(x, y, len, angle, w, color){
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  ctx.moveTo(0,0);
+  ctx.quadraticCurveTo(len*0.3, -w, len, 0);
+  ctx.quadraticCurveTo(len*0.3, w, 0, 0);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  // center vein
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(len*0.08,0);
+  ctx.lineTo(len*0.9,0);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawLeafGarland(cx, topY, halfWidth, sag, density){
+  // Draws a hanging leaf garland along an arch (like a botanical swag),
+  // from (cx-halfWidth, topY) down through the sag point and back up to
+  // (cx+halfWidth, topY). Leaves are strung along the arch, pointing outward/down.
+  const leafColors = ['#8a9a6b', '#a3b382', '#7c8c5a'];
+  const n = density;
+
+  function archPoint(t){
+    // t in [0,1] across the arch; simple parabola for the hanging sag
+    const x = cx - halfWidth + t * (halfWidth*2);
+    const y = topY + sag * (4 * t * (1 - t)); // parabolic sag, max at t=0.5
+    return {x, y};
+  }
+
+  for(let i=0; i<=n; i++){
+    const t = i / n;
+    const p = archPoint(t);
+    // tangent-ish angle along the arch, for a natural hanging orientation
+    const t2 = Math.min(1, t + 0.02);
+    const p2 = archPoint(t2);
+    const tangentAngle = Math.atan2(p2.y - p.y, p2.x - p.x);
+    // leaves hang slightly below the arch line, alternating size/angle for a fuller look
+    const leafLen = 34 + (i % 3) * 8;
+    const leafAngle = tangentAngle + Math.PI/2 + (i % 2 === 0 ? -0.35 : 0.35);
+    const color = leafColors[i % leafColors.length];
+    drawLeaf(p.x, p.y, leafLen, leafAngle, 11 + (i%2)*3, color);
+  }
+
+  // a thin string/vine along the arch, drawn under the leaves' visual weight
+  ctx.save();
+  ctx.strokeStyle = 'rgba(122,110,80,0.35)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for(let i=0; i<=40; i++){
+    const t = i/40;
+    const p = archPoint(t);
+    if(i===0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawDeskScene(){
+  const wallH = drawWall();
+  drawDesk(wallH);
+}
+
+function drawInstagramIcon(x, y, size){
+  // Rounded square with gradient (IG brand gradient), ring, and lens dot
+  const r = size * 0.28;
+  ctx.save();
+  const grad = ctx.createLinearGradient(x, y+size, x+size, y);
+  grad.addColorStop(0, '#feda75');
+  grad.addColorStop(0.25, '#fa7e1e');
+  grad.addColorStop(0.5, '#d62976');
+  grad.addColorStop(0.75, '#962fbf');
+  grad.addColorStop(1, '#4f5bd5');
+  roundRectPath(x, y, size, size, r);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.restore();
+
+  // camera ring
+  ctx.save();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = size * 0.09;
+  ctx.beginPath();
+  ctx.arc(x + size/2, y + size/2, size*0.24, 0, Math.PI*2);
+  ctx.stroke();
+
+  // small dot (flash)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(x + size*0.76, y + size*0.24, size*0.045, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawTikTokIcon(x, y, size){
+  // Black rounded square base, then the TikTok "musical note" glyph in
+  // cyan/red/white layers to mimic the brand mark.
+  ctx.save();
+  roundRectPath(x, y, size, size, size*0.28);
+  ctx.fillStyle = '#000';
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(x, y);
+  const s = size / 100; // path authored on a 100x100 grid
+  ctx.scale(s, s);
+
+  function notePath(){
+    ctx.beginPath();
+    ctx.moveTo(58, 18);
+    ctx.bezierCurveTo(58, 26, 64, 32, 72, 33);
+    ctx.lineTo(72, 46);
+    ctx.bezierCurveTo(66, 46, 61, 44, 58, 41);
+    ctx.lineTo(58, 66);
+    ctx.bezierCurveTo(58, 76, 50, 84, 40, 84);
+    ctx.bezierCurveTo(30, 84, 22, 76, 22, 66);
+    ctx.bezierCurveTo(22, 56, 30, 48, 40, 48);
+    ctx.bezierCurveTo(41.5, 48, 43, 48.2, 44.4, 48.6);
+    ctx.lineTo(44.4, 61);
+    ctx.bezierCurveTo(43, 60.4, 41.5, 60, 40, 60);
+    ctx.bezierCurveTo(36.7, 60, 34, 62.7, 34, 66);
+    ctx.bezierCurveTo(34, 69.3, 36.7, 72, 40, 72);
+    ctx.bezierCurveTo(43.3, 72, 46, 69.3, 46, 66);
+    ctx.lineTo(46, 18);
+    ctx.closePath();
+  }
+
+  // cyan layer (offset left)
+  ctx.save();
+  ctx.translate(-2.5, 1.5);
+  notePath();
+  ctx.fillStyle = '#25F4EE';
+  ctx.fill();
+  ctx.restore();
+
+  // red layer (offset right)
+  ctx.save();
+  ctx.translate(2.5, -1.5);
+  notePath();
+  ctx.fillStyle = '#FE2C55';
+  ctx.fill();
+  ctx.restore();
+
+  // white top layer
+  notePath();
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawHeader(){
+  const logoSize = 130;
+  const logoX = 70, logoY = 90;
+
+  // logo bg card
+  ctx.save();
+  ctx.shadowColor = 'rgba(185,131,95,0.25)';
+  ctx.shadowBlur = 22;
+  ctx.fillStyle = '#fffdf9';
+  roundRectPath(logoX, logoY, logoSize, logoSize, 26);
+  ctx.fill();
+  ctx.restore();
+
+  if(srcLogo.complete && srcLogo.naturalWidth > 0){
+    ctx.save();
+    roundRectPath(logoX+8, logoY+8, logoSize-16, logoSize-16, 20);
+    ctx.clip();
+    // cover fit
+    const iw = srcLogo.naturalWidth, ih = srcLogo.naturalHeight;
+    const targetW = logoSize-16, targetH = logoSize-16;
+    const scale = Math.max(targetW/iw, targetH/ih);
+    const dw = iw*scale, dh = ih*scale;
+    ctx.drawImage(srcLogo, logoX+8 + (targetW-dw)/2, logoY+8 + (targetH-dh)/2, dw, dh);
+    ctx.restore();
+  }
+
+  const textX = logoX + logoSize + 30;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = COLORS.ink;
+  ctx.font = '700 42px Segoe UI, sans-serif';
+  ctx.fillText('B Medical Center', textX, logoY + 50);
+
+  const iconSize = 38;
+  const iconX = textX;
+
+  ctx.font = '600 34px Segoe UI, sans-serif';
+  drawInstagramIcon(iconX, logoY + 106 - iconSize + 8, iconSize);
+  ctx.fillStyle = COLORS.ink;
+  ctx.fillText(igHandle, textX + iconSize + 14, logoY + 106);
+}
+
+function drawPhoneFrame(){
+  // shadow
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.3)';
+  ctx.shadowBlur = 70;
+  ctx.shadowOffsetY = 30;
+  ctx.fillStyle = '#111';
+  roundRectPath(PHONE_X, PHONE_Y, PHONE_W, PHONE_H, PHONE_RADIUS);
+  ctx.fill();
+  ctx.restore();
+
+  // side buttons
+  ctx.fillStyle = '#111';
+  ctx.fillRect(PHONE_X-6, PHONE_Y+230, 6, 130); // power
+  ctx.fillRect(PHONE_X+PHONE_W, PHONE_Y+190, 6, 80);  // vol1
+  ctx.fillRect(PHONE_X+PHONE_W, PHONE_Y+290, 6, 130); // vol2
+}
+
+function drawLaptopFrame(){
+  // Screen lid (shadow + body)
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 80;
+  ctx.shadowOffsetY = 35;
+  ctx.fillStyle = '#1a1a1a';
+  roundRectPath(LAPTOP_X, LAPTOP_Y, LAPTOP_W, LAPTOP_H, 22);
+  ctx.fill();
+  ctx.restore();
+
+  // subtle inner bezel highlight
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 2;
+  roundRectPath(LAPTOP_X+3, LAPTOP_Y+3, LAPTOP_W-6, LAPTOP_H-6, 20);
+  ctx.stroke();
+  ctx.restore();
+
+  // camera dot on bezel
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.beginPath();
+  ctx.arc(LAPTOP_X + LAPTOP_W/2, LAPTOP_Y + 13, 4, 0, Math.PI*2);
+  ctx.fill();
+
+  // Base / keyboard deck (trapezoid so it reads as a laptop base seen from front)
+  ctx.save();
+  ctx.beginPath();
+  const topInset = 60;
+  ctx.moveTo(LBASE_X + topInset, LBASE_Y);
+  ctx.lineTo(LBASE_X + LBASE_W - topInset, LBASE_Y);
+  ctx.lineTo(LBASE_X + LBASE_W, LBASE_Y + LBASE_H);
+  ctx.lineTo(LBASE_X, LBASE_Y + LBASE_H);
+  ctx.closePath();
+  const baseGrad = ctx.createLinearGradient(0, LBASE_Y, 0, LBASE_Y+LBASE_H);
+  baseGrad.addColorStop(0, '#2a2a2a');
+  baseGrad.addColorStop(1, '#141414');
+  ctx.fillStyle = baseGrad;
+  ctx.shadowColor = 'rgba(0,0,0,0.4)';
+  ctx.shadowBlur = 30;
+  ctx.shadowOffsetY = 12;
+  ctx.fill();
+  ctx.restore();
+
+  // trackpad notch hint on the base front edge
+  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  const notchW = 180;
+  roundRectPath(CW/2 - notchW/2, LBASE_Y + LBASE_H - 6, notchW, 5, 3);
+  ctx.fill();
+}
+
+function drawScreenContent(){
+  const sx = MODE === 'phone' ? SCREEN_X : LSCREEN_X;
+  const sy = MODE === 'phone' ? SCREEN_Y : LSCREEN_Y;
+  const sw = MODE === 'phone' ? SCREEN_W : LSCREEN_W;
+  const sh = MODE === 'phone' ? SCREEN_H : LSCREEN_H;
+  const sr = MODE === 'phone' ? SCREEN_RADIUS : LSCREEN_RADIUS;
+
+  ctx.save();
+  roundRectPath(sx, sy, sw, sh, sr);
+  ctx.clip();
+
+  if(srcVideo.readyState >= 2){
+    const vw = srcVideo.videoWidth, vh = srcVideo.videoHeight;
+    const scale = Math.max(sw/vw, sh/vh);
+    const dw = vw*scale, dh = vh*scale;
+    const dx = sx + (sw-dw)/2;
+    const dy = sy + (sh-dh)/2;
+    ctx.drawImage(srcVideo, dx, dy, dw, dh);
+  } else {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(sx, sy, sw, sh);
+  }
+  ctx.restore();
+}
+
+function drawNotch(){
+  if(MODE !== 'phone') return; // laptops don't have a phone-style notch
+  ctx.fillStyle = '#111';
+  const notchW = 260, notchH = 46;
+  roundRectPath(PHONE_X + (PHONE_W-notchW)/2, PHONE_Y+30, notchW, notchH, 24);
+  ctx.fill();
+}
+
+function wrapText(text, x, y, maxWidth, lineHeight){
+  const words = text.split(' ');
+  let line = '';
+  const lines = [];
+  for(let w of words){
+    const test = line ? line + ' ' + w : w;
+    if(ctx.measureText(test).width > maxWidth && line){
+      lines.push(line);
+      line = w;
+    } else {
+      line = test;
+    }
+  }
+  if(line) lines.push(line);
+  lines.forEach((l,i) => ctx.fillText(l, x, y + i*lineHeight));
+  return lines.length;
+}
+
+function drawCaption(){
+  if(!captionText) return;
+  ctx.fillStyle = COLORS.ink;
+  ctx.textAlign = 'center';
+
+  if(MODE === 'phone'){
+    ctx.font = '500 34px Segoe UI, sans-serif';
+    const capY = PHONE_Y + PHONE_H + 90;
+    wrapText(captionText, CW/2, capY, 820, 46);
+  } else {
+    // Laptop mode: compact caption strip at the very bottom of the desk,
+    // with a soft translucent backing so it stays readable over the wood.
+    ctx.font = '500 30px Segoe UI, sans-serif';
+    const stripH = 78;
+    const stripY = CH - stripH;
+    ctx.save();
+    ctx.fillStyle = 'rgba(253,249,240,0.82)';
+    ctx.fillRect(0, stripY, CW, stripH);
+    ctx.restore();
+    ctx.fillStyle = COLORS.ink;
+    wrapText(captionText, CW/2, stripY + 34, CW - 200, 38);
+  }
+
+  ctx.textAlign = 'left';
+}
+
+// Static layer (background, header, phone chrome, notch) rarely changes —
+// draw it once to an offscreen canvas and blit it each frame instead of
+// redrawing gradients/text every frame. Big perf win = smoother video.
+let staticLayer = null;
+let staticLayerDirty = true;
+
+function buildStaticLayer(){
+  if(!staticLayer){
+    staticLayer = document.createElement('canvas');
+  }
+  staticLayer.width = CW;
+  staticLayer.height = CH;
+  // Temporarily point the shared `ctx` at the offscreen static layer so all
+  // existing draw* helpers (which reference `ctx` directly) draw there instead.
+  ctx = staticLayer.getContext('2d');
+  if(MODE === 'phone'){
+    drawBackground();
+    drawHeader();
+    drawLeafGarland(PHONE_X + PHONE_W/2, 245, PHONE_W/2 + 70, 55, 16);
+    drawPhoneFrame();
+  } else {
+    drawDeskScene();
+    drawHeader();
+    drawLeafGarland(LAPTOP_X + LAPTOP_W/2, 195, LAPTOP_W/2 + 90, 45, 20);
+    drawLaptopFrame();
+  }
+  ctx = liveCtx; // restore the real, visible context
+  staticLayerDirty = false;
+}
+
+function renderFrame(){
+  if(staticLayerDirty || !staticLayer) buildStaticLayer();
+  ctx.drawImage(staticLayer, 0, 0);
+  drawScreenContent();
+  drawNotch(); // drawn after video since video covers the top of the screen area
+  drawCaption();
+}
+
+function animationLoop(){
+  renderFrame();
+  // Prefer syncing to actual decoded video frames when supported — much smoother
+  if(srcVideo.requestVideoFrameCallback){
+    animFrameId = srcVideo.requestVideoFrameCallback(animationLoop);
+  } else {
+    animFrameId = requestAnimationFrame(animationLoop);
+  }
+}
+
+// ---------- Form submit: prepare preview ----------
+setupForm.addEventListener('submit', function(e){
+  e.preventDefault();
+
+  if(videoFileInput.files.length === 0){
+    alert("Ju lutem zgjidhni një video!");
+    return;
+  }
+
+  captionText = document.getElementById('caption').value;
+  igHandle = document.getElementById('igHandle').value;
+  includeAudio = document.getElementById('includeAudio').checked;
+
+  const file = videoFileInput.files[0];
+  srcVideo.src = URL.createObjectURL(file);
+  srcVideo.loop = true;
+  srcVideo.muted = true; // always muted during preview to guarantee autoplay works;
+                         // unmuted only when export actually starts (user gesture already happened)
+  srcVideo.playsInline = true;
+
+  if(logoFileInput.files.length > 0){
+    srcLogo.removeAttribute('crossorigin'); // local blob: URL — no CORS needed
+    srcLogo.src = URL.createObjectURL(logoFileInput.files[0]);
+  } else {
+    srcLogo.setAttribute('crossorigin', 'anonymous'); // remote CDN — needs CORS to avoid a tainted canvas
+    srcLogo.src = 'https://raw.githubusercontent.com/Brigli-The-Coder/Projects-Files/refs/heads/main/1767377695835.png';
+  }
+  srcLogo.onerror = () => console.warn('Logo failed to load from CDN — check the network connection');
+
+  formView.style.display = 'none';
+  resultView.style.display = 'flex';
+
+  function tryStart(){
+    srcVideo.play().catch(err => console.warn('Video play() failed:', err));
+    if(!animFrameId) animationLoop();
+  }
+
+  srcVideo.addEventListener('loadeddata', tryStart, {once:true});
+  srcVideo.addEventListener('error', () => {
+    statusText.textContent = '⚠️ Video nuk u ngarkua dot. Provo një format tjetër (mp4/mov).';
+  });
+
+  if(srcVideo.readyState >= 2){
+    tryStart();
+  }
+});
+
+backBtn.addEventListener('click', () => {
+  if(animFrameId){
+    if(srcVideo.cancelVideoFrameCallback){
+      srcVideo.cancelVideoFrameCallback(animFrameId);
+    } else {
+      cancelAnimationFrame(animFrameId);
+    }
+    animFrameId = null;
+  }
+  srcVideo.pause();
+  resultView.style.display = 'none';
+  formView.style.display = 'flex';
+  downloadLink.style.display = 'none';
+  statusText.textContent = 'Gati për eksport.';
+  statusText.classList.remove('recording');
+});
+
+// ---------- Recording via canvas.captureStream + MediaRecorder ----------
+recordBtn.addEventListener('click', () => {
+  if(mediaRecorder && mediaRecorder.state === 'recording'){
+    mediaRecorder.stop();
+    return;
+  }
+
+  recordedChunks = [];
+  downloadLink.style.display = 'none';
+
+  const canvasStream = canvas.captureStream(30); // 30 FPS
+
+  let finalStream = canvasStream;
+  if(includeAudio){
+    try{
+      const videoStreamSrc = srcVideo.captureStream ? srcVideo.captureStream() : (srcVideo.mozCaptureStream ? srcVideo.mozCaptureStream() : null);
+      if(videoStreamSrc){
+        const audioTracks = videoStreamSrc.getAudioTracks();
+        if(audioTracks.length > 0){
+          finalStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioTracks]);
+        }
+      }
+    }catch(err){
+      console.warn('Audio capture failed, exporting video-only:', err);
+    }
+  }
+
+  let mimeType = 'video/webm;codecs=vp9,opus';
+  if(!MediaRecorder.isTypeSupported(mimeType)){
+    mimeType = 'video/webm;codecs=vp8,opus';
+  }
+  if(!MediaRecorder.isTypeSupported(mimeType)){
+    mimeType = 'video/webm';
+  }
+
+  mediaRecorder = new MediaRecorder(finalStream, { mimeType, videoBitsPerSecond: 8_000_000 });
+
+  mediaRecorder.ondataavailable = (e) => {
+    if(e.data.size > 0) recordedChunks.push(e.data);
+  };
+
+  mediaRecorder.onstop = () => {
+    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+    const url = URL.createObjectURL(blob);
+    downloadLink.href = url;
+    downloadLink.style.display = 'block';
+    statusText.textContent = '✅ Gati! Shkarko video-n më poshtë.';
+    statusText.classList.remove('recording');
+    recordBtn.textContent = '⏺ Fillo Eksportin';
+    recordBtn.disabled = false;
+    srcVideo.muted = true; // back to muted for preview after export finishes
+  };
+
+  srcVideo.currentTime = 0;
+  // This click IS the user gesture, so unmuting + playing with sound is allowed here
+  srcVideo.muted = !includeAudio;
+  srcVideo.play().catch(err => console.warn('Video play() at export start failed:', err));
+
+  mediaRecorder.start();
+  statusText.textContent = '⏺ Duke incizuar... (do të mbulojë 1 xhiro të plotë të videos)';
+  statusText.classList.add('recording');
+  recordBtn.textContent = '⏹ Ndalo Eksportin';
+
+  // Auto-stop after one full loop of the source video (+ small buffer)
+  const stopAfterMs = (isFinite(srcVideo.duration) && srcVideo.duration > 0)
+    ? (srcVideo.duration * 1000) + 300
+    : 8000;
+
+  setTimeout(() => {
+    if(mediaRecorder && mediaRecorder.state === 'recording'){
+      mediaRecorder.stop();
+    }
+  }, stopAfterMs);
+});
+
+// ---------- PWA: register service worker (offline app-shell caching) ----------
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js')
+      .catch(err => console.warn('Service worker registration failed:', err));
+  });
+}
+</script>
+
+</body>
+</html>
