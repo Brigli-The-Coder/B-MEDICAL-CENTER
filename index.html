@@ -107,36 +107,6 @@
     margin:0; text-transform:none; font-size:0.9rem; font-weight:500; color:var(--ink);
   }
 
-  /* ============ PREP OVERLAY (video sanitize step) ============ */
-  #prepOverlay{
-    display:none;
-    position:fixed; inset:0;
-    background:rgba(58,43,34,0.55);
-    backdrop-filter:blur(3px);
-    z-index:50;
-    align-items:center; justify-content:center;
-    padding:20px;
-  }
-  .prep-box{
-    background:#fffdf9;
-    border-radius:18px;
-    padding:30px 26px;
-    max-width:340px;
-    width:100%;
-    text-align:center;
-    box-shadow:0 20px 50px rgba(0,0,0,0.25);
-  }
-  .prep-spinner{
-    width:44px; height:44px; margin:0 auto 16px;
-    border:4px solid rgba(185,131,95,0.25);
-    border-top-color:var(--accent);
-    border-radius:50%;
-    animation:spin 0.9s linear infinite;
-  }
-  @keyframes spin{ to{ transform:rotate(360deg); } }
-  .prep-box p{margin:0; font-weight:700; font-size:0.95rem;}
-  .prep-box p.sub{margin-top:6px; font-weight:500; opacity:0.65; font-size:0.82rem;}
-
   /* ============ RESULT VIEW ============ */
   #resultView{
     display:none;
@@ -232,15 +202,6 @@
   </div>
 </div>
 
-<!-- ============ PREP OVERLAY ============ -->
-<div id="prepOverlay">
-  <div class="prep-box">
-    <div class="prep-spinner"></div>
-    <p id="prepTitle">Duke përgatitur video-n…</p>
-    <p class="sub" id="prepSub">Kjo ndodh vetëm një herë dhe zgjat sa gjatësia e videos.</p>
-  </div>
-</div>
-
 <!-- ============ RESULT VIEW ============ -->
 <div id="resultView">
   <canvas id="previewCanvas" width="1080" height="1920"></canvas>
@@ -257,16 +218,12 @@
 
 <!-- Hidden source elements used for drawing -->
 <video id="srcVideo" playsinline style="display:none;"></video>
-<video id="rawVideo" playsinline muted style="display:none;"></video>
 <img id="srcLogo" style="display:none;">
 
 <script>
 const formView = document.getElementById('formView');
 const resultView = document.getElementById('resultView');
 const setupForm = document.getElementById('setupForm');
-const prepOverlay = document.getElementById('prepOverlay');
-const prepTitle = document.getElementById('prepTitle');
-const prepSub = document.getElementById('prepSub');
 
 const videoFileInput = document.getElementById('videoFile');
 const logoFileInput = document.getElementById('logoFile');
@@ -274,7 +231,6 @@ const videoNameEl = document.getElementById('videoName');
 const logoNameEl = document.getElementById('logoName');
 
 const srcVideo = document.getElementById('srcVideo');
-const rawVideo = document.getElementById('rawVideo'); // used only during the sanitize/re-encode pass
 const srcLogo = document.getElementById('srcLogo');
 const canvas = document.getElementById('previewCanvas');
 let ctx = canvas.getContext('2d');
@@ -909,152 +865,6 @@ function animationLoop(){
   }
 }
 
-// ---------- Video sanitize pass ----------
-// Some phone/AI-exported .mp4 files use codecs or container layouts that
-// Chrome starts to decode, then aborts mid-playback (fires a MediaError on
-// the <video> element even though the file plays fine in Photos/Gallery).
-// To dodge this we do one hidden pass: play the raw file once in an
-// invisible <video>, re-capture it via canvas+MediaRecorder into a fresh
-// standard WebM, and use THAT as the actual source for the mockup + export.
-// This runs automatically after picking a file — no extra step for the user.
-function sanitizeVideo(file){
-  return new Promise((resolve, reject) => {
-    const objUrl = URL.createObjectURL(file);
-    rawVideo.src = objUrl;
-    rawVideo.loop = false;
-    rawVideo.muted = true;
-    rawVideo.playsInline = true;
-
-    let settled = false;
-    const fail = (msg) => {
-      if(settled) return;
-      settled = true;
-      URL.revokeObjectURL(objUrl);
-      reject(new Error(msg));
-    };
-
-    rawVideo.onerror = () => fail('Video origjinale nuk mund të lexohet fare nga shfletuesi.');
-
-    rawVideo.onloadeddata = () => {
-      try{
-        const rawW = rawVideo.videoWidth || 720;
-        const rawH = rawVideo.videoHeight || 1280;
-
-        // Keep quality up to Full HD (1920 on the long side) untouched — that's
-        // already "professional" for Reels/TikTok. Only scale down further above
-        // that, since 4K+ re-encoding on a phone CPU/GPU is what tends to crash
-        // the browser tab (the "Aw, Snap!" page). PC/desktop has more headroom,
-        // so this only kicks in when the source is genuinely oversized.
-        const MAX_LONG_SIDE = 1920;
-        const longSide = Math.max(rawW, rawH);
-        const scale = longSide > MAX_LONG_SIDE ? (MAX_LONG_SIDE / longSide) : 1;
-        const w = Math.round(rawW * scale);
-        const h = Math.round(rawH * scale);
-
-        const off = document.createElement('canvas');
-        off.width = w; off.height = h;
-        const offCtx = off.getContext('2d');
-
-        const canvasStream = off.captureStream(30);
-        let finalStream = canvasStream;
-
-        try{
-          const rawStream = rawVideo.captureStream ? rawVideo.captureStream() : (rawVideo.mozCaptureStream ? rawVideo.mozCaptureStream() : null);
-          if(rawStream){
-            const audioTracks = rawStream.getAudioTracks();
-            if(audioTracks.length > 0){
-              finalStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioTracks]);
-            }
-          }
-        }catch(err){
-          console.warn('Sanitize: audio capture unavailable, continuing video-only:', err);
-        }
-
-        let mimeType = 'video/webm;codecs=vp9,opus';
-        if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8,opus';
-        if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
-
-        const rec = new MediaRecorder(finalStream, { mimeType, videoBitsPerSecond: 8_000_000 });
-        const chunks = [];
-        rec.ondataavailable = (e) => { if(e.data.size > 0) chunks.push(e.data); };
-        rec.onstop = () => {
-          URL.revokeObjectURL(objUrl);
-          if(chunks.length === 0){ fail('Rikodifikimi dështoi (0 bytes).'); return; }
-          const blob = new Blob(chunks, { type: 'video/webm' });
-          settled = true;
-          resolve(blob);
-        };
-
-        // Draw using the browser's own "a new decoded frame is ready" signal
-        // (requestVideoFrameCallback) instead of requestAnimationFrame.
-        // requestAnimationFrame fires on the SCREEN's refresh rate, not the
-        // video's decode rate — if the content is mostly static (like AI/
-        // slideshow-style videos), the browser can skip repainting the
-        // hidden <video> between rAF ticks, so most frames never actually
-        // get drawn onto the canvas even though audio keeps playing.
-        // rVFC instead fires exactly once per real decoded video frame.
-        let rvfcId, rafId;
-        const useRVFC = typeof rawVideo.requestVideoFrameCallback === 'function';
-
-        function drawNow(){
-          offCtx.drawImage(rawVideo, 0, 0, w, h);
-        }
-
-        function pumpRVFC(){
-          if(rawVideo.paused || rawVideo.ended) return;
-          drawNow();
-          rvfcId = rawVideo.requestVideoFrameCallback(pumpRVFC);
-        }
-
-        function pumpRAF(){
-          if(rawVideo.paused || rawVideo.ended) return;
-          drawNow();
-          rafId = requestAnimationFrame(pumpRAF);
-        }
-
-        function stopPump(){
-          if(rvfcId && rawVideo.cancelVideoFrameCallback) rawVideo.cancelVideoFrameCallback(rvfcId);
-          if(rafId) cancelAnimationFrame(rafId);
-        }
-
-        rawVideo.onended = () => {
-          stopPump();
-          if(rec.state === 'recording') rec.stop();
-        };
-        rawVideo.onerror = () => {
-          stopPump();
-          if(rec.state === 'recording') rec.stop();
-          else fail('Video origjinale ndaloi papritur gjatë përpunimit.');
-        };
-
-        rec.start();
-        rawVideo.currentTime = 0;
-        rawVideo.play().then(() => {
-          if(useRVFC){
-            rvfcId = rawVideo.requestVideoFrameCallback(pumpRVFC);
-          } else {
-            pumpRAF();
-          }
-        }).catch(err => fail('Nuk u lejua riprodhimi për përgatitje: ' + err.message));
-
-        // Safety timeout in case metadata duration is wrong / stuck stream
-        const maxMs = (isFinite(rawVideo.duration) && rawVideo.duration > 0)
-          ? (rawVideo.duration * 1000) + 1500
-          : 15000;
-        setTimeout(() => {
-          if(rec.state === 'recording'){
-            stopPump();
-            rec.stop();
-          }
-        }, maxMs);
-
-      }catch(err){
-        fail('Gabim gjatë përgatitjes së video-s: ' + err.message);
-      }
-    };
-  });
-}
-
 // ---------- Form submit: prepare preview ----------
 setupForm.addEventListener('submit', function(e){
   e.preventDefault();
@@ -1069,6 +879,11 @@ setupForm.addEventListener('submit', function(e){
   includeAudio = document.getElementById('includeAudio').checked;
 
   const file = videoFileInput.files[0];
+  srcVideo.src = URL.createObjectURL(file);
+  srcVideo.loop = true;
+  srcVideo.muted = true; // always muted during preview to guarantee autoplay works;
+                         // unmuted only when export actually starts (user gesture already happened)
+  srcVideo.playsInline = true;
 
   const CDN_LOGO_URL = 'https://raw.githubusercontent.com/Brigli-The-Coder/Projects-Files/refs/heads/main/1767377695835.png';
 
@@ -1090,54 +905,22 @@ setupForm.addEventListener('submit', function(e){
     srcLogo.src = CDN_LOGO_URL;
   }
 
-  prepTitle.textContent = 'Duke përgatitur video-n…';
-  prepSub.textContent = 'Kjo ndodh vetëm një herë dhe zgjat sa gjatësia e videos.';
-  prepOverlay.style.display = 'flex';
+  formView.style.display = 'none';
+  resultView.style.display = 'flex';
 
-  function proceedWithBlob(blob){
-    prepOverlay.style.display = 'none';
-    srcVideo.src = URL.createObjectURL(blob);
-    srcVideo.loop = true;
-    srcVideo.muted = true;
-    srcVideo.playsInline = true;
-
-    formView.style.display = 'none';
-    resultView.style.display = 'flex';
-
-    function tryStart(){
-      srcVideo.play().catch(err => console.warn('Video play() failed:', err));
-      if(!animFrameId) animationLoop();
-    }
-    srcVideo.addEventListener('loadeddata', tryStart, {once:true});
-    srcVideo.addEventListener('error', () => {
-      statusText.textContent = '⚠️ Video nuk u ngarkua dot. Provo një format tjetër (mp4/mov).';
-    });
-    if(srcVideo.readyState >= 2) tryStart();
+  function tryStart(){
+    srcVideo.play().catch(err => console.warn('Video play() failed:', err));
+    if(!animFrameId) animationLoop();
   }
 
-  sanitizeVideo(file).then(proceedWithBlob).catch(err => {
-    console.warn('Sanitize failed, falling back to original file:', err);
-    // Fallback: try the original file directly in case sanitize itself hit an edge case
-    prepTitle.textContent = 'Duke provuar direkt…';
-    prepSub.textContent = 'Përgatitja automatike dështoi, po provoj skedarin origjinal.';
-    const directUrl = URL.createObjectURL(file);
-    prepOverlay.style.display = 'none';
-    srcVideo.src = directUrl;
-    srcVideo.loop = true;
-    srcVideo.muted = true;
-    srcVideo.playsInline = true;
-    formView.style.display = 'none';
-    resultView.style.display = 'flex';
-    function tryStart(){
-      srcVideo.play().catch(e => console.warn('Video play() failed:', e));
-      if(!animFrameId) animationLoop();
-    }
-    srcVideo.addEventListener('loadeddata', tryStart, {once:true});
-    srcVideo.addEventListener('error', () => {
-      statusText.textContent = '⚠️ Kjo video nuk mbështetet nga shfletuesi juaj, as direkt. Provo ta eksportosh/ndryshosh formatin nga një app tjetër dhe ngarkoje sërish.';
-    });
-    if(srcVideo.readyState >= 2) tryStart();
+  srcVideo.addEventListener('loadeddata', tryStart, {once:true});
+  srcVideo.addEventListener('error', () => {
+    statusText.textContent = '⚠️ Video nuk u ngarkua dot. Provo një format tjetër (mp4/mov).';
   });
+
+  if(srcVideo.readyState >= 2){
+    tryStart();
+  }
 });
 
 backBtn.addEventListener('click', () => {
