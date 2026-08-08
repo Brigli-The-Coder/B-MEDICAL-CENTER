@@ -43,23 +43,27 @@
   }
   .card{
     background:rgba(255,255,255,0.55);
-    border:1px solid rgba(185,131,95,0.35);
+    border:1px solid rgba(201,160,106,0.35);
     border-radius:20px;
     padding:36px;
     max-width:560px;
     width:100%;
-    backdrop-filter:blur(6px);
-    box-shadow:0 10px 40px rgba(0,0,0,0.08);
+    backdrop-filter:blur(10px);
+    box-shadow:0 10px 40px rgba(185,131,95,0.1);
   }
-  .card h1{font-size:1.5rem; margin:0 0 6px;}
-  .card p.sub{margin:0 0 28px; opacity:0.7; font-size:0.92rem;}
+  .card h1{
+    font-size:1.5rem; margin:0 0 6px;
+    background:linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .card p.sub{margin:0 0 28px; opacity:0.75; font-size:0.92rem; color:var(--sub);}
 
   .mode-tabs{
     display:flex; gap:10px; margin-bottom:6px;
   }
   .mode-tab{
     flex:1; padding:14px 10px; border-radius:12px;
-    border:2px solid rgba(185,131,95,0.35); background:#fffdf8;
+    border:2px solid rgba(201,160,106,0.3); background:#fffdf9;
     text-align:center; cursor:pointer; font-weight:700; font-size:0.92rem;
     color:var(--ink); transition:all .15s ease; user-select:none;
   }
@@ -67,8 +71,9 @@
   .mode-tab.active{
     border-color:var(--accent); background:rgba(185,131,95,0.12);
     color:var(--accent);
+    box-shadow:0 0 20px rgba(185,131,95,0.12);
   }
-  .mode-tab .ratio{font-size:0.72rem; opacity:0.6; font-weight:500; display:block; margin-top:2px;}
+  .mode-tab .ratio{font-size:0.72rem; opacity:0.65; font-weight:500; display:block; margin-top:2px;}
 
   label{
     display:block; font-weight:600; font-size:0.85rem;
@@ -77,7 +82,7 @@
   }
   input[type=text], textarea, input[type=file]{
     width:100%; padding:12px 14px; border-radius:10px;
-    border:1px solid rgba(185,131,95,0.4); background:#fffdf8;
+    border:1px solid rgba(201,160,106,0.4); background:#fffdf9;
     font-size:0.95rem; font-family:inherit; color:var(--ink);
   }
   textarea{resize:vertical; min-height:70px;}
@@ -86,13 +91,13 @@
   .row > div{flex:1;}
   button{
     margin-top:28px; width:100%; padding:14px; border:none;
-    border-radius:12px; background:var(--accent); color:#fff;
+    border-radius:12px; background:linear-gradient(90deg, var(--accent), var(--accent2)); color:#fff;
     font-size:1rem; font-weight:700; cursor:pointer;
-    letter-spacing:0.3px; transition:transform .15s ease, background .2s ease;
+    letter-spacing:0.3px; transition:transform .15s ease, filter .2s ease;
   }
-  button:hover{background:#a06f4a; transform:translateY(-1px);}
+  button:hover{filter:brightness(1.1); transform:translateY(-1px);}
   button:disabled{opacity:0.5; cursor:not-allowed; transform:none;}
-  .hint{font-size:0.78rem; opacity:0.6; margin-top:4px;}
+  .hint{font-size:0.78rem; opacity:0.65; margin-top:4px; color:var(--sub);}
   .preview-name{font-size:0.8rem; margin-top:6px; color:var(--accent); font-weight:600;}
   .check-row{
     display:flex; align-items:center; gap:8px; margin-top:18px;
@@ -116,7 +121,7 @@
     width:min(90vw, 340px);
     height:auto;
     border-radius:18px;
-    box-shadow:0 20px 50px rgba(0,0,0,0.2);
+    box-shadow:0 20px 60px rgba(201,160,106,0.2);
     background:#000;
   }
   .controls{
@@ -129,17 +134,17 @@
   .btn-secondary{
     background:transparent; color:var(--accent); border:1px solid var(--accent) !important;
   }
-  .btn-secondary:hover{ background:rgba(185,131,95,0.1); color:var(--accent);}
+  .btn-secondary:hover{ background:rgba(185,131,95,0.1); color:var(--accent); filter:none;}
   .status{
     font-size:0.9rem; color:var(--ink); text-align:center; min-height:20px;
     font-weight:600;
   }
-  .status.recording{ color:#b23b3b; }
+  .status.recording{ color:#ff5c7a; }
   .download-link{
     display:none;
     margin-top:6px;
     padding:14px 20px;
-    background:#2b7a3f;
+    background:linear-gradient(90deg, #22c55e, #16a34a);
     color:#fff !important;
     border-radius:12px;
     font-weight:700;
@@ -238,15 +243,12 @@ const downloadLink = document.getElementById('downloadLink');
 
 let captionText = '';
 let igHandle = '';
-let ttHandle = '';
 let includeAudio = true;
 let animFrameId = null;
 let mediaRecorder = null;
 let recordedChunks = [];
 let startTime = null;
 let MODE = 'phone'; // 'phone' (9:16) or 'laptop' (16:9)
-let activeCanvasVideoTrack = null; // set while recording; used to force-capture
-                                    // every frame via requestFrame() below
 
 const tabPhone = document.getElementById('tabPhone');
 const tabLaptop = document.getElementById('tabLaptop');
@@ -347,26 +349,27 @@ function drawBackground(){
   ctx.fillStyle = grad;
   ctx.fillRect(0,0,CW,CH);
 
-  // soft blobs
-  let rg = ctx.createRadialGradient(-40,-40,10, -40,-40, 320);
-  rg.addColorStop(0,'rgba(255,255,255,0.9)');
-  rg.addColorStop(1,'rgba(255,255,255,0)');
-  ctx.fillStyle = rg;
-  ctx.fillRect(0,0,600,600);
-
-  rg = ctx.createRadialGradient(CW-40, CH-40, 10, CW-40, CH-40, 280);
-  rg.addColorStop(0,'rgba(185,131,95,0.35)');
+  // teal glow, top-left
+  let rg = ctx.createRadialGradient(-40,-40,10, -40,-40, 420);
+  rg.addColorStop(0,'rgba(185,131,95,0.28)');
   rg.addColorStop(1,'rgba(185,131,95,0)');
   ctx.fillStyle = rg;
-  ctx.fillRect(CW-600, CH-600, 600, 600);
+  ctx.fillRect(0,0,700,700);
 
-  // dots grid
-  ctx.fillStyle = 'rgba(43,38,32,0.22)';
+  // purple glow, bottom-right
+  rg = ctx.createRadialGradient(CW-40, CH-40, 10, CW-40, CH-40, 380);
+  rg.addColorStop(0,'rgba(201,160,106,0.28)');
+  rg.addColorStop(1,'rgba(201,160,106,0)');
+  ctx.fillStyle = rg;
+  ctx.fillRect(CW-700, CH-700, 700, 700);
+
+  // faint grid dots (tech accent), top-right
+  ctx.fillStyle = 'rgba(147,197,253,0.18)';
   const dotStartX = CW - 260, dotStartY = 610;
   for(let row=0; row<3; row++){
     for(let col=0; col<4; col++){
       ctx.beginPath();
-      ctx.arc(dotStartX + col*40, dotStartY + row*40, 7, 0, Math.PI*2);
+      ctx.arc(dotStartX + col*40, dotStartY + row*40, 6, 0, Math.PI*2);
       ctx.fill();
     }
   }
@@ -374,8 +377,8 @@ function drawBackground(){
 
 // ============ Desk scene (laptop mode): wall + desk + flower vases ============
 function drawWall(){
-  // Same beige family as the phone background, but as a flat "wall" band.
-  // Wall ends a bit below the laptop's base so the desk has clear room.
+  // Dark tech wall — same gradient family as the phone background,
+  // as a flat band above the desk line.
   const wallH = LBASE_Y + LBASE_H * 0.4;
   const grad = ctx.createLinearGradient(0,0,0,wallH);
   grad.addColorStop(0, COLORS.bg1);
@@ -383,15 +386,22 @@ function drawWall(){
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, CW, wallH);
 
-  // soft top-left glow, matching the phone mode's blob language
-  let rg = ctx.createRadialGradient(-60,-60,10, -60,-60, 420);
-  rg.addColorStop(0,'rgba(255,255,255,0.85)');
-  rg.addColorStop(1,'rgba(255,255,255,0)');
+  // teal glow, top-left — matches phone mode's glow language
+  let rg = ctx.createRadialGradient(-60,-60,10, -60,-60, 500);
+  rg.addColorStop(0,'rgba(185,131,95,0.24)');
+  rg.addColorStop(1,'rgba(185,131,95,0)');
   ctx.fillStyle = rg;
-  ctx.fillRect(0,0,700,700);
+  ctx.fillRect(0,0,800,800);
+
+  // purple glow, top-right
+  rg = ctx.createRadialGradient(CW+40, -40, 10, CW+40, -40, 460);
+  rg.addColorStop(0,'rgba(201,160,106,0.20)');
+  rg.addColorStop(1,'rgba(201,160,106,0)');
+  ctx.fillStyle = rg;
+  ctx.fillRect(CW-700, 0, 700, 700);
 
   // dot grid accent, top-right
-  ctx.fillStyle = 'rgba(43,38,32,0.18)';
+  ctx.fillStyle = 'rgba(147,197,253,0.16)';
   const dotStartX = CW - 300, dotStartY = 90;
   for(let row=0; row<3; row++){
     for(let col=0; col<5; col++){
@@ -404,23 +414,23 @@ function drawWall(){
 }
 
 function drawDesk(wallH){
-  // Desk surface: a warm wood-toned band filling the rest of the frame
+  // Desk surface: a dark matte studio-desk band, subtly cooler than the wall
   const deskGrad = ctx.createLinearGradient(0, wallH, 0, CH);
-  deskGrad.addColorStop(0, '#c9a877');
-  deskGrad.addColorStop(1, '#a9845a');
+  deskGrad.addColorStop(0, '#12182a');
+  deskGrad.addColorStop(1, '#080b14');
   ctx.fillStyle = deskGrad;
   ctx.fillRect(0, wallH, CW, CH - wallH);
 
   // subtle horizon shadow where wall meets desk
   const shadowGrad = ctx.createLinearGradient(0, wallH-30, 0, wallH+30);
   shadowGrad.addColorStop(0, 'rgba(0,0,0,0)');
-  shadowGrad.addColorStop(0.5, 'rgba(0,0,0,0.12)');
+  shadowGrad.addColorStop(0.5, 'rgba(0,0,0,0.35)');
   shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = shadowGrad;
   ctx.fillRect(0, wallH-30, CW, 60);
 
-  // faint wood grain lines
-  ctx.strokeStyle = 'rgba(80,55,30,0.10)';
+  // faint reflected glow lines on the desk surface (instead of wood grain)
+  ctx.strokeStyle = 'rgba(185,131,95,0.06)';
   ctx.lineWidth = 2;
   for(let i=0; i<6; i++){
     const y = wallH + 40 + i*46;
@@ -453,51 +463,72 @@ function drawLeaf(x, y, len, angle, w, color){
   ctx.restore();
 }
 
-function drawLeafGarland(cx, topY, halfWidth, sag, density){
-  // Draws a hanging leaf garland along an arch (like a botanical swag),
-  // from (cx-halfWidth, topY) down through the sag point and back up to
-  // (cx+halfWidth, topY). Leaves are strung along the arch, pointing outward/down.
-  const leafColors = ['#8a9a6b', '#a3b382', '#7c8c5a'];
-  const n = density;
-
-  function archPoint(t){
-    // t in [0,1] across the arch; simple parabola for the hanging sag
-    const x = cx - halfWidth + t * (halfWidth*2);
-    const y = topY + sag * (4 * t * (1 - t)); // parabolic sag, max at t=0.5
-    return {x, y};
-  }
-
-  for(let i=0; i<=n; i++){
-    const t = i / n;
-    const p = archPoint(t);
-    // tangent-ish angle along the arch, for a natural hanging orientation
-    const t2 = Math.min(1, t + 0.02);
-    const p2 = archPoint(t2);
-    const tangentAngle = Math.atan2(p2.y - p.y, p2.x - p.x);
-    // leaves hang slightly below the arch line, alternating size/angle for a fuller look
-    const leafLen = 34 + (i % 3) * 8;
-    const leafAngle = tangentAngle + Math.PI/2 + (i % 2 === 0 ? -0.35 : 0.35);
-    const color = leafColors[i % leafColors.length];
-    drawLeaf(p.x, p.y, leafLen, leafAngle, 11 + (i%2)*3, color);
-  }
-
-  // a thin string/vine along the arch, drawn under the leaves' visual weight
+function drawFlowerVase(baseX, baseY, scale, mirrored){
   ctx.save();
-  ctx.strokeStyle = 'rgba(122,110,80,0.35)';
-  ctx.lineWidth = 2;
+  ctx.translate(baseX, baseY);
+  ctx.scale(mirrored ? -scale : scale, scale);
+
+  // --- vase body: dark smoked glass ---
   ctx.beginPath();
-  for(let i=0; i<=40; i++){
-    const t = i/40;
-    const p = archPoint(t);
-    if(i===0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
-  }
+  ctx.moveTo(-38, 0);
+  ctx.bezierCurveTo(-42, -20, -34, -55, -30, -95);
+  ctx.lineTo(-24, -100);
+  ctx.lineTo(24, -100);
+  ctx.lineTo(30, -95);
+  ctx.bezierCurveTo(34, -55, 42, -20, 38, 0);
+  ctx.closePath();
+  const vaseGrad = ctx.createLinearGradient(-40,-100,40,0);
+  vaseGrad.addColorStop(0, '#232a3d');
+  vaseGrad.addColorStop(0.5, '#161c2c');
+  vaseGrad.addColorStop(1, '#0e1220');
+  ctx.fillStyle = vaseGrad;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(185,131,95,0.25)';
+  ctx.lineWidth = 1.5;
   ctx.stroke();
+
+  // vase rim
+  ctx.beginPath();
+  ctx.ellipse(0, -100, 26, 7, 0, 0, Math.PI*2);
+  ctx.fillStyle = '#1b2236';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(201,160,106,0.3)';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  // --- leafy stems in teal/purple neon tones (no flower heads = greenery-only look) ---
+  const leafColors = ['#22c5c3', '#3ddad8', '#9333ea'];
+  drawLeaf(-4, -100, 95, -2.35, 16, leafColors[0]);
+  drawLeaf(6, -102, 110, -1.9, 18, leafColors[1]);
+  drawLeaf(0, -98, 80, -1.55, 14, leafColors[2]);
+  drawLeaf(14, -100, 90, -1.15, 15, leafColors[0]);
+  drawLeaf(-14, -98, 75, -2.75, 13, leafColors[1]);
+  drawLeaf(20, -95, 60, -0.7, 12, leafColors[2]);
+  drawLeaf(-20, -94, 55, -3.05, 12, leafColors[0]);
+
+  // small stem lines for detail
+  ctx.strokeStyle = leafColors[2];
+  ctx.lineWidth = 3;
+  [-2.35,-1.9,-1.55,-1.15,-2.75].forEach((ang,i) => {
+    const len = [95,110,80,90,75][i];
+    ctx.beginPath();
+    ctx.moveTo(0,-99);
+    ctx.lineTo(Math.cos(ang)*len*0.4, -99+Math.sin(ang)*len*0.4);
+    ctx.stroke();
+  });
+
   ctx.restore();
 }
 
 function drawDeskScene(){
   const wallH = drawWall();
   drawDesk(wallH);
+  // Two vases flanking the laptop base, sitting on the desk surface.
+  // Vase art is drawn with its base at (x,y) and grows upward/outward,
+  // so position them just outside the laptop base, feet on the desk band.
+  const vaseY = wallH + (CH - wallH) * 0.72;
+  drawFlowerVase(LAPTOP_X - 95, vaseY, 1.5, false);
+  drawFlowerVase(LAPTOP_X + LAPTOP_W + 95, vaseY, 1.5, true);
 }
 
 function drawInstagramIcon(x, y, size){
@@ -622,10 +653,8 @@ function drawHeader(){
   ctx.fillText('B Medical Center', textX, logoY + 50);
 
   const iconSize = 38;
-  const iconX = textX;
-
   ctx.font = '600 34px Segoe UI, sans-serif';
-  drawInstagramIcon(iconX, logoY + 106 - iconSize + 8, iconSize);
+  drawInstagramIcon(textX, logoY + 106 - iconSize + 8, iconSize);
   ctx.fillStyle = COLORS.ink;
   ctx.fillText(igHandle, textX + iconSize + 14, logoY + 106);
 }
@@ -639,6 +668,14 @@ function drawPhoneFrame(){
   ctx.fillStyle = '#111';
   roundRectPath(PHONE_X, PHONE_Y, PHONE_W, PHONE_H, PHONE_RADIUS);
   ctx.fill();
+  ctx.restore();
+
+  // subtle neon edge highlight
+  ctx.save();
+  ctx.strokeStyle = 'rgba(185,131,95,0.3)';
+  ctx.lineWidth = 1.5;
+  roundRectPath(PHONE_X, PHONE_Y, PHONE_W, PHONE_H, PHONE_RADIUS);
+  ctx.stroke();
   ctx.restore();
 
   // side buttons
@@ -659,9 +696,9 @@ function drawLaptopFrame(){
   ctx.fill();
   ctx.restore();
 
-  // subtle inner bezel highlight
+  // neon edge highlight (brand accent instead of plain white bezel line)
   ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.strokeStyle = 'rgba(185,131,95,0.25)';
   ctx.lineWidth = 2;
   roundRectPath(LAPTOP_X+3, LAPTOP_Y+3, LAPTOP_W-6, LAPTOP_H-6, 20);
   ctx.stroke();
@@ -761,13 +798,19 @@ function drawCaption(){
     wrapText(captionText, CW/2, capY, 820, 46);
   } else {
     // Laptop mode: compact caption strip at the very bottom of the desk,
-    // with a soft translucent backing so it stays readable over the wood.
+    // with a soft translucent dark backing so it stays readable over the desk.
     ctx.font = '500 30px Segoe UI, sans-serif';
     const stripH = 78;
     const stripY = CH - stripH;
     ctx.save();
-    ctx.fillStyle = 'rgba(253,249,240,0.82)';
+    ctx.fillStyle = 'rgba(5,7,13,0.85)';
     ctx.fillRect(0, stripY, CW, stripH);
+    ctx.strokeStyle = 'rgba(185,131,95,0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, stripY);
+    ctx.lineTo(CW, stripY);
+    ctx.stroke();
     ctx.restore();
     ctx.fillStyle = COLORS.ink;
     wrapText(captionText, CW/2, stripY + 34, CW - 200, 38);
@@ -794,12 +837,10 @@ function buildStaticLayer(){
   if(MODE === 'phone'){
     drawBackground();
     drawHeader();
-    drawLeafGarland(PHONE_X + PHONE_W/2, 245, PHONE_W/2 + 70, 55, 16);
     drawPhoneFrame();
   } else {
     drawDeskScene();
     drawHeader();
-    drawLeafGarland(LAPTOP_X + LAPTOP_W/2, 195, LAPTOP_W/2 + 90, 45, 20);
     drawLaptopFrame();
   }
   ctx = liveCtx; // restore the real, visible context
@@ -816,16 +857,12 @@ function renderFrame(){
 
 function animationLoop(){
   renderFrame();
-  // Force-capture this exact frame into the recording stream. Without this,
-  // canvas.captureStream(N) only grabs a new frame when Chromium's internal
-  // "dirty region" heuristic decides enough changed — with a mostly-static
-  // background and only a small video region updating, it was silently
-  // dropping the majority of frames, cutting the exported video down to a
-  // fraction of its real length. requestFrame() bypasses that heuristic.
-  if(activeCanvasVideoTrack){
-    activeCanvasVideoTrack.requestFrame();
+  // Prefer syncing to actual decoded video frames when supported — much smoother
+  if(srcVideo.requestVideoFrameCallback){
+    animFrameId = srcVideo.requestVideoFrameCallback(animationLoop);
+  } else {
+    animFrameId = requestAnimationFrame(animationLoop);
   }
-  animFrameId = requestAnimationFrame(animationLoop);
 }
 
 // ---------- Form submit: prepare preview ----------
@@ -856,9 +893,8 @@ setupForm.addEventListener('submit', function(e){
     srcLogo.src = URL.createObjectURL(logoFileInput.files[0]);
   } else {
     // Try WITH crossorigin first (needed for a clean, non-tainted canvas export).
-    // If that fails (e.g. the CDN doesn't send CORS headers for this request),
-    // fall back to loading it WITHOUT crossorigin so the logo still shows on
-    // screen even if the exported video ends up unable to include it.
+    // If that fails, fall back to loading it WITHOUT crossorigin so the logo
+    // still shows on screen even if the exported video can't include it.
     srcLogo.setAttribute('crossorigin', 'anonymous');
     srcLogo.onerror = () => {
       console.warn('Logo failed to load with CORS — retrying without crossorigin (export may be limited)');
@@ -889,7 +925,11 @@ setupForm.addEventListener('submit', function(e){
 
 backBtn.addEventListener('click', () => {
   if(animFrameId){
-    cancelAnimationFrame(animFrameId);
+    if(srcVideo.cancelVideoFrameCallback){
+      srcVideo.cancelVideoFrameCallback(animFrameId);
+    } else {
+      cancelAnimationFrame(animFrameId);
+    }
     animFrameId = null;
   }
   srcVideo.pause();
@@ -910,12 +950,7 @@ recordBtn.addEventListener('click', () => {
   recordedChunks = [];
   downloadLink.style.display = 'none';
 
-  // fps=0 means "on-demand": Chromium won't auto-grab frames using its own
-  // dirty-region heuristic (which was the root cause of dropped frames).
-  // Instead we push every single frame ourselves via requestFrame() inside
-  // animationLoop(), so the recording exactly matches what's rendered.
-  const canvasStream = canvas.captureStream(0);
-  activeCanvasVideoTrack = canvasStream.getVideoTracks()[0];
+  const canvasStream = canvas.captureStream(30); // 30 FPS
 
   let finalStream = canvasStream;
   if(includeAudio){
@@ -932,27 +967,21 @@ recordBtn.addEventListener('click', () => {
     }
   }
 
-  // VP8 instead of VP9: VP9 real-time encoding under load was silently
-  // dropping the majority of frames (a 6s source video was coming out as
-  // ~4.6s / only ~30 real frames in testing), even though every frame was
-  // being rendered and pushed correctly on the JS side. VP8 is lighter to
-  // encode in real time and reliably captures the full recording.
-  let mimeType = 'video/webm;codecs=vp8,opus';
+  let mimeType = 'video/webm;codecs=vp9,opus';
   if(!MediaRecorder.isTypeSupported(mimeType)){
-    mimeType = 'video/webm;codecs=vp9,opus';
+    mimeType = 'video/webm;codecs=vp8,opus';
   }
   if(!MediaRecorder.isTypeSupported(mimeType)){
     mimeType = 'video/webm';
   }
 
-  mediaRecorder = new MediaRecorder(finalStream, { mimeType, videoBitsPerSecond: 5_000_000 });
+  mediaRecorder = new MediaRecorder(finalStream, { mimeType, videoBitsPerSecond: 8_000_000 });
 
   mediaRecorder.ondataavailable = (e) => {
     if(e.data.size > 0) recordedChunks.push(e.data);
   };
 
   mediaRecorder.onstop = () => {
-    activeCanvasVideoTrack = null; // stop force-pushing frames outside of recording
     const blob = new Blob(recordedChunks, { type: 'video/webm' });
     const url = URL.createObjectURL(blob);
     downloadLink.href = url;
@@ -962,71 +991,28 @@ recordBtn.addEventListener('click', () => {
     recordBtn.textContent = '⏺ Fillo Eksportin';
     recordBtn.disabled = false;
     srcVideo.muted = true; // back to muted for preview after export finishes
-    srcVideo.loop = true; // restore looping for the on-screen preview
   };
 
-  // Reset to frame 0 and WAIT for the seek to actually complete before we
-  // start recording/timing anything — otherwise (especially on longer or
-  // higher-res videos) the recorder can start mid-seek, causing the capture
-  // to run out of sync with the video and stop before reaching the real end.
-  const beginRecording = () => {
-    // Turn looping off for the duration of the export — with loop=true,
-    // the video jumps back to frame 0 right as MediaRecorder is stopping,
-    // which was corrupting/truncating the tail of the WebM output. We
-    // restore loop=true afterwards so the on-screen preview keeps looping.
-    srcVideo.loop = false;
+  srcVideo.currentTime = 0;
+  // This click IS the user gesture, so unmuting + playing with sound is allowed here
+  srcVideo.muted = !includeAudio;
+  srcVideo.play().catch(err => console.warn('Video play() at export start failed:', err));
 
-    let stopped = false;
-    const stopOnce = () => {
-      if(stopped) return;
-      stopped = true;
-      // Tiny delay so the encoder has a chance to flush the last couple of
-      // frames/audio samples before the stream is cut — stopping the instant
-      // 'ended' fires can shave off the tail end of the recording.
-      setTimeout(() => {
-        if(mediaRecorder && mediaRecorder.state === 'recording'){
-          mediaRecorder.stop();
-        }
-      }, 200);
-    };
+  mediaRecorder.start();
+  statusText.textContent = '⏺ Duke incizuar... (do të mbulojë 1 xhiro të plotë të videos)';
+  statusText.classList.add('recording');
+  recordBtn.textContent = '⏹ Ndalo Eksportin';
 
-    // Primary signal: the video's own 'ended' event fires exactly when
-    // playback completes — this is far more reliable than a setTimeout
-    // guess, since play()/seek()/encoder timing can all drift slightly.
-    srcVideo.addEventListener('ended', stopOnce, {once:true});
+  // Auto-stop after one full loop of the source video (+ small buffer)
+  const stopAfterMs = (isFinite(srcVideo.duration) && srcVideo.duration > 0)
+    ? (srcVideo.duration * 1000) + 300
+    : 8000;
 
-    // Safety-net fallback in case 'ended' doesn't fire for some reason
-    // (e.g. a video with unusual metadata) — give it a generous margin.
-    function scheduleFallbackStop(){
-      if(isFinite(srcVideo.duration) && srcVideo.duration > 0){
-        setTimeout(stopOnce, srcVideo.duration * 1000 + 1200);
-      } else {
-        setTimeout(scheduleFallbackStop, 200);
-      }
+  setTimeout(() => {
+    if(mediaRecorder && mediaRecorder.state === 'recording'){
+      mediaRecorder.stop();
     }
-    scheduleFallbackStop();
-
-    mediaRecorder.start(250); // timeslice: flush encoded data every 250ms
-                               // instead of only at the very end — keeps the
-                               // encoder's internal queue from building up a
-                               // backlog under load, which was contributing
-                               // to dropped frames during longer recordings.
-    statusText.textContent = '⏺ Duke incizuar... (do të mbulojë 1 xhiro të plotë të videos)';
-    statusText.classList.add('recording');
-    recordBtn.textContent = '⏹ Ndalo Eksportin';
-
-    srcVideo.play().catch(err => console.warn('Video play() at export start failed:', err));
-  };
-
-  srcVideo.muted = !includeAudio; // this click IS the user gesture, so unmuting is allowed here
-  srcVideo.pause();
-  if(Math.abs(srcVideo.currentTime) < 0.01){
-    // Already at (or very near) frame 0 — no seek needed, start immediately
-    beginRecording();
-  } else {
-    srcVideo.addEventListener('seeked', beginRecording, {once:true});
-    srcVideo.currentTime = 0;
-  }
+  }, stopAfterMs);
 });
 
 // ---------- PWA: register service worker (offline app-shell caching) ----------
