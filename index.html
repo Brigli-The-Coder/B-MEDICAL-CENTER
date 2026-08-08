@@ -245,6 +245,8 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let startTime = null;
 let MODE = 'phone'; // 'phone' (9:16) or 'laptop' (16:9)
+let activeCanvasVideoTrack = null; // set while recording; used to force-capture
+                                    // every frame via requestFrame() below
 
 const tabPhone = document.getElementById('tabPhone');
 const tabLaptop = document.getElementById('tabLaptop');
@@ -814,12 +816,16 @@ function renderFrame(){
 
 function animationLoop(){
   renderFrame();
-  // Prefer syncing to actual decoded video frames when supported — much smoother
-  if(srcVideo.requestVideoFrameCallback){
-    animFrameId = srcVideo.requestVideoFrameCallback(animationLoop);
-  } else {
-    animFrameId = requestAnimationFrame(animationLoop);
+  // Force-capture this exact frame into the recording stream. Without this,
+  // canvas.captureStream(N) only grabs a new frame when Chromium's internal
+  // "dirty region" heuristic decides enough changed — with a mostly-static
+  // background and only a small video region updating, it was silently
+  // dropping the majority of frames, cutting the exported video down to a
+  // fraction of its real length. requestFrame() bypasses that heuristic.
+  if(activeCanvasVideoTrack){
+    activeCanvasVideoTrack.requestFrame();
   }
+  animFrameId = requestAnimationFrame(animationLoop);
 }
 
 // ---------- Form submit: prepare preview ----------
@@ -842,14 +848,26 @@ setupForm.addEventListener('submit', function(e){
                          // unmuted only when export actually starts (user gesture already happened)
   srcVideo.playsInline = true;
 
+  const CDN_LOGO_URL = 'https://raw.githubusercontent.com/Brigli-The-Coder/Projects-Files/refs/heads/main/1767377695835.png';
+
   if(logoFileInput.files.length > 0){
     srcLogo.removeAttribute('crossorigin'); // local blob: URL — no CORS needed
+    srcLogo.onerror = null;
     srcLogo.src = URL.createObjectURL(logoFileInput.files[0]);
   } else {
-    srcLogo.setAttribute('crossorigin', 'anonymous'); // remote CDN — needs CORS to avoid a tainted canvas
-    srcLogo.src = 'https://raw.githubusercontent.com/Brigli-The-Coder/Projects-Files/refs/heads/main/1767377695835.png';
+    // Try WITH crossorigin first (needed for a clean, non-tainted canvas export).
+    // If that fails (e.g. the CDN doesn't send CORS headers for this request),
+    // fall back to loading it WITHOUT crossorigin so the logo still shows on
+    // screen even if the exported video ends up unable to include it.
+    srcLogo.setAttribute('crossorigin', 'anonymous');
+    srcLogo.onerror = () => {
+      console.warn('Logo failed to load with CORS — retrying without crossorigin (export may be limited)');
+      srcLogo.onerror = () => console.warn('Logo failed to load from CDN entirely — check the network/URL');
+      srcLogo.removeAttribute('crossorigin');
+      srcLogo.src = CDN_LOGO_URL + '?retry=1';
+    };
+    srcLogo.src = CDN_LOGO_URL;
   }
-  srcLogo.onerror = () => console.warn('Logo failed to load from CDN — check the network connection');
 
   formView.style.display = 'none';
   resultView.style.display = 'flex';
@@ -871,11 +889,7 @@ setupForm.addEventListener('submit', function(e){
 
 backBtn.addEventListener('click', () => {
   if(animFrameId){
-    if(srcVideo.cancelVideoFrameCallback){
-      srcVideo.cancelVideoFrameCallback(animFrameId);
-    } else {
-      cancelAnimationFrame(animFrameId);
-    }
+    cancelAnimationFrame(animFrameId);
     animFrameId = null;
   }
   srcVideo.pause();
@@ -896,7 +910,12 @@ recordBtn.addEventListener('click', () => {
   recordedChunks = [];
   downloadLink.style.display = 'none';
 
-  const canvasStream = canvas.captureStream(30); // 30 FPS
+  // fps=0 means "on-demand": Chromium won't auto-grab frames using its own
+  // dirty-region heuristic (which was the root cause of dropped frames).
+  // Instead we push every single frame ourselves via requestFrame() inside
+  // animationLoop(), so the recording exactly matches what's rendered.
+  const canvasStream = canvas.captureStream(0);
+  activeCanvasVideoTrack = canvasStream.getVideoTracks()[0];
 
   let finalStream = canvasStream;
   if(includeAudio){
@@ -913,21 +932,27 @@ recordBtn.addEventListener('click', () => {
     }
   }
 
-  let mimeType = 'video/webm;codecs=vp9,opus';
+  // VP8 instead of VP9: VP9 real-time encoding under load was silently
+  // dropping the majority of frames (a 6s source video was coming out as
+  // ~4.6s / only ~30 real frames in testing), even though every frame was
+  // being rendered and pushed correctly on the JS side. VP8 is lighter to
+  // encode in real time and reliably captures the full recording.
+  let mimeType = 'video/webm;codecs=vp8,opus';
   if(!MediaRecorder.isTypeSupported(mimeType)){
-    mimeType = 'video/webm;codecs=vp8,opus';
+    mimeType = 'video/webm;codecs=vp9,opus';
   }
   if(!MediaRecorder.isTypeSupported(mimeType)){
     mimeType = 'video/webm';
   }
 
-  mediaRecorder = new MediaRecorder(finalStream, { mimeType, videoBitsPerSecond: 8_000_000 });
+  mediaRecorder = new MediaRecorder(finalStream, { mimeType, videoBitsPerSecond: 5_000_000 });
 
   mediaRecorder.ondataavailable = (e) => {
     if(e.data.size > 0) recordedChunks.push(e.data);
   };
 
   mediaRecorder.onstop = () => {
+    activeCanvasVideoTrack = null; // stop force-pushing frames outside of recording
     const blob = new Blob(recordedChunks, { type: 'video/webm' });
     const url = URL.createObjectURL(blob);
     downloadLink.href = url;
@@ -937,28 +962,71 @@ recordBtn.addEventListener('click', () => {
     recordBtn.textContent = '⏺ Fillo Eksportin';
     recordBtn.disabled = false;
     srcVideo.muted = true; // back to muted for preview after export finishes
+    srcVideo.loop = true; // restore looping for the on-screen preview
   };
 
-  srcVideo.currentTime = 0;
-  // This click IS the user gesture, so unmuting + playing with sound is allowed here
-  srcVideo.muted = !includeAudio;
-  srcVideo.play().catch(err => console.warn('Video play() at export start failed:', err));
+  // Reset to frame 0 and WAIT for the seek to actually complete before we
+  // start recording/timing anything — otherwise (especially on longer or
+  // higher-res videos) the recorder can start mid-seek, causing the capture
+  // to run out of sync with the video and stop before reaching the real end.
+  const beginRecording = () => {
+    // Turn looping off for the duration of the export — with loop=true,
+    // the video jumps back to frame 0 right as MediaRecorder is stopping,
+    // which was corrupting/truncating the tail of the WebM output. We
+    // restore loop=true afterwards so the on-screen preview keeps looping.
+    srcVideo.loop = false;
 
-  mediaRecorder.start();
-  statusText.textContent = '⏺ Duke incizuar... (do të mbulojë 1 xhiro të plotë të videos)';
-  statusText.classList.add('recording');
-  recordBtn.textContent = '⏹ Ndalo Eksportin';
+    let stopped = false;
+    const stopOnce = () => {
+      if(stopped) return;
+      stopped = true;
+      // Tiny delay so the encoder has a chance to flush the last couple of
+      // frames/audio samples before the stream is cut — stopping the instant
+      // 'ended' fires can shave off the tail end of the recording.
+      setTimeout(() => {
+        if(mediaRecorder && mediaRecorder.state === 'recording'){
+          mediaRecorder.stop();
+        }
+      }, 200);
+    };
 
-  // Auto-stop after one full loop of the source video (+ small buffer)
-  const stopAfterMs = (isFinite(srcVideo.duration) && srcVideo.duration > 0)
-    ? (srcVideo.duration * 1000) + 300
-    : 8000;
+    // Primary signal: the video's own 'ended' event fires exactly when
+    // playback completes — this is far more reliable than a setTimeout
+    // guess, since play()/seek()/encoder timing can all drift slightly.
+    srcVideo.addEventListener('ended', stopOnce, {once:true});
 
-  setTimeout(() => {
-    if(mediaRecorder && mediaRecorder.state === 'recording'){
-      mediaRecorder.stop();
+    // Safety-net fallback in case 'ended' doesn't fire for some reason
+    // (e.g. a video with unusual metadata) — give it a generous margin.
+    function scheduleFallbackStop(){
+      if(isFinite(srcVideo.duration) && srcVideo.duration > 0){
+        setTimeout(stopOnce, srcVideo.duration * 1000 + 1200);
+      } else {
+        setTimeout(scheduleFallbackStop, 200);
+      }
     }
-  }, stopAfterMs);
+    scheduleFallbackStop();
+
+    mediaRecorder.start(250); // timeslice: flush encoded data every 250ms
+                               // instead of only at the very end — keeps the
+                               // encoder's internal queue from building up a
+                               // backlog under load, which was contributing
+                               // to dropped frames during longer recordings.
+    statusText.textContent = '⏺ Duke incizuar... (do të mbulojë 1 xhiro të plotë të videos)';
+    statusText.classList.add('recording');
+    recordBtn.textContent = '⏹ Ndalo Eksportin';
+
+    srcVideo.play().catch(err => console.warn('Video play() at export start failed:', err));
+  };
+
+  srcVideo.muted = !includeAudio; // this click IS the user gesture, so unmuting is allowed here
+  srcVideo.pause();
+  if(Math.abs(srcVideo.currentTime) < 0.01){
+    // Already at (or very near) frame 0 — no seek needed, start immediately
+    beginRecording();
+  } else {
+    srcVideo.addEventListener('seeked', beginRecording, {once:true});
+    srcVideo.currentTime = 0;
+  }
 });
 
 // ---------- PWA: register service worker (offline app-shell caching) ----------
