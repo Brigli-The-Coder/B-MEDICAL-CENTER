@@ -937,8 +937,19 @@ function sanitizeVideo(file){
 
     rawVideo.onloadeddata = () => {
       try{
-        const w = rawVideo.videoWidth || 720;
-        const h = rawVideo.videoHeight || 1280;
+        const rawW = rawVideo.videoWidth || 720;
+        const rawH = rawVideo.videoHeight || 1280;
+
+        // Keep quality up to Full HD (1920 on the long side) untouched — that's
+        // already "professional" for Reels/TikTok. Only scale down further above
+        // that, since 4K+ re-encoding on a phone CPU/GPU is what tends to crash
+        // the browser tab (the "Aw, Snap!" page). PC/desktop has more headroom,
+        // so this only kicks in when the source is genuinely oversized.
+        const MAX_LONG_SIDE = 1920;
+        const longSide = Math.max(rawW, rawH);
+        const scale = longSide > MAX_LONG_SIDE ? (MAX_LONG_SIDE / longSide) : 1;
+        const w = Math.round(rawW * scale);
+        const h = Math.round(rawH * scale);
 
         const off = document.createElement('canvas');
         off.width = w; off.height = h;
@@ -974,19 +985,44 @@ function sanitizeVideo(file){
           resolve(blob);
         };
 
-        let rafId;
-        function pump(){
-          if(rawVideo.paused || rawVideo.ended) return;
+        // Draw using the browser's own "a new decoded frame is ready" signal
+        // (requestVideoFrameCallback) instead of requestAnimationFrame.
+        // requestAnimationFrame fires on the SCREEN's refresh rate, not the
+        // video's decode rate — if the content is mostly static (like AI/
+        // slideshow-style videos), the browser can skip repainting the
+        // hidden <video> between rAF ticks, so most frames never actually
+        // get drawn onto the canvas even though audio keeps playing.
+        // rVFC instead fires exactly once per real decoded video frame.
+        let rvfcId, rafId;
+        const useRVFC = typeof rawVideo.requestVideoFrameCallback === 'function';
+
+        function drawNow(){
           offCtx.drawImage(rawVideo, 0, 0, w, h);
-          rafId = requestAnimationFrame(pump);
+        }
+
+        function pumpRVFC(){
+          if(rawVideo.paused || rawVideo.ended) return;
+          drawNow();
+          rvfcId = rawVideo.requestVideoFrameCallback(pumpRVFC);
+        }
+
+        function pumpRAF(){
+          if(rawVideo.paused || rawVideo.ended) return;
+          drawNow();
+          rafId = requestAnimationFrame(pumpRAF);
+        }
+
+        function stopPump(){
+          if(rvfcId && rawVideo.cancelVideoFrameCallback) rawVideo.cancelVideoFrameCallback(rvfcId);
+          if(rafId) cancelAnimationFrame(rafId);
         }
 
         rawVideo.onended = () => {
-          if(rafId) cancelAnimationFrame(rafId);
+          stopPump();
           if(rec.state === 'recording') rec.stop();
         };
         rawVideo.onerror = () => {
-          if(rafId) cancelAnimationFrame(rafId);
+          stopPump();
           if(rec.state === 'recording') rec.stop();
           else fail('Video origjinale ndaloi papritur gjatë përpunimit.');
         };
@@ -994,7 +1030,11 @@ function sanitizeVideo(file){
         rec.start();
         rawVideo.currentTime = 0;
         rawVideo.play().then(() => {
-          pump();
+          if(useRVFC){
+            rvfcId = rawVideo.requestVideoFrameCallback(pumpRVFC);
+          } else {
+            pumpRAF();
+          }
         }).catch(err => fail('Nuk u lejua riprodhimi për përgatitje: ' + err.message));
 
         // Safety timeout in case metadata duration is wrong / stuck stream
@@ -1003,7 +1043,7 @@ function sanitizeVideo(file){
           : 15000;
         setTimeout(() => {
           if(rec.state === 'recording'){
-            if(rafId) cancelAnimationFrame(rafId);
+            stopPump();
             rec.stop();
           }
         }, maxMs);
